@@ -2,6 +2,7 @@ import os
 import json
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
 
 from prompts.system_prompt import SYSTEM_PROMPT
 
@@ -26,10 +27,19 @@ def main():
     # Crear el cliente de Gemini
     client = genai.Client(api_key=api_key)
 
+    # Configurar el chat con el System Prompt
+    chat = client.chats.create(
+        model="gemini-3.7-flash",
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            response_mime_type="application/json",
+        ),
+    )
+
     # Solicitar pregunta al usuario
     pregunta = input("\nEscribe tu pregunta sobre TOGAF: ")
 
-    # Construir el prompt utilizando delimitadores XML
+    # Construir el mensaje utilizando delimitadores XML
     prompt = f"""
 <INSTRUCCIONES>
 Utiliza el System Prompt proporcionado para responder la pregunta del estudiante.
@@ -45,17 +55,9 @@ No se ha proporcionado contexto adicional.
 """
 
     try:
-        # Enviar la solicitud al modelo
-        response = client.models.generate_content(
-            model="gemini-3.6-flash",
-            config={
-                "system_instruction": SYSTEM_PROMPT,
-                "response_mime_type": "application/json",
-            },
-            contents=prompt,
-        )
+        # Enviar la pregunta al modelo
+        response = chat.send_message(prompt)
 
-        # Obtener la respuesta
         respuesta = response.text
 
         print("\n=================================")
