@@ -5,6 +5,7 @@ venv/
 !.env.example
 __pycache__/
 *.py[cod]
+tmp/
 .vscode/
 .DS_Store
 Thumbs.db

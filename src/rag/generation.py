@@ -43,6 +43,45 @@ def _asks_for_adm_phase_list(question: str) -> bool:
     return "adm" in tokens and has_phase_term and asks_for_sequence and not asks_about_requirements
 
 
+def _has_adm_phase_sequence_evidence(chunks: list[RetrievedChunk]) -> bool:
+    required_labels = (
+        "figure 5-1",
+        "preliminary phase",
+        "phase a",
+        "phase b",
+        "phase c",
+        "phase d",
+        "phase e",
+        "phase f",
+        "phase g",
+        "phase h",
+        "requirements management",
+    )
+    return any(
+        all(label in chunk.text.casefold() for label in required_labels)
+        for chunk in chunks
+    )
+
+
+def _deterministic_adm_phase_list_answer() -> TutorAnswer:
+    return TutorAnswer(
+        tema="ADM y secuencia de fases",
+        respuesta=(
+            "El ADM es el método de TOGAF para desarrollar la arquitectura empresarial. "
+            "La Figura 5-1 del documento muestra primero la Fase Preliminar y luego el "
+            "ciclo de fases: A (Visión de Arquitectura), B (Arquitectura de Negocio), "
+            "C (Arquitecturas de Sistemas de Información), D (Arquitectura Tecnológica), "
+            "E (Oportunidades y Soluciones), F (Planificación de la Migración), "
+            "G (Gobernanza de la Implementación) y H (Gestión del Cambio de Arquitectura). "
+            "La Gestión de Requisitos aparece en el centro conectada con las fases; no es "
+            "una Fase I. El corpus muestra la secuencia, pero no describe con detalle todas "
+            "las actividades de las fases D a H."
+        ),
+        ejemplo="",
+        nivel="intermedio",
+    )
+
+
 def format_context(chunks: list[RetrievedChunk]) -> str:
     blocks = []
     for index, chunk in enumerate(chunks, start=1):
@@ -139,6 +178,12 @@ def generate_answer(
     model_name: str = DEFAULT_GROQ_MODEL,
 ) -> TutorAnswer:
     """Generate one schema-constrained answer; only retrieved chunks are sent."""
+    if _asks_for_adm_phase_list(question) and _has_adm_phase_sequence_evidence(chunks):
+        # The ADM sequence is transcribed from a labeled source figure. Return it
+        # directly when that complete evidence is retrieved to prevent phase-order
+        # hallucinations and avoid spending a Groq call on a fixed list.
+        return _deterministic_adm_phase_list_answer()
+
     if client is None:
         from groq import Groq
 

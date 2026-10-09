@@ -9,6 +9,22 @@ from pathlib import Path
 
 SUPPORTED_SUFFIXES = {".pdf", ".docx", ".txt", ".html", ".htm"}
 
+# pypdf does not extract labels from this vector diagram. Keep a page-attributed
+# transcription so retrieval can answer questions about the ADM cycle order.
+PDF_FIGURE_TRANSCRIPTIONS = {
+    ("TOGAF_V9.1-Introduccion.pdf", 4): (
+        "Figure 5-1 Architecture Development Cycle. The diagram shows the Preliminary "
+        "Phase before the ADM cycle. The lettered cycle proceeds through Phase A: "
+        "Architecture Vision; Phase B: Business Architecture; Phase C: Information "
+        "Systems Architectures; Phase D: Technology Architecture; Phase E: Opportunities "
+        "and Solutions; Phase F: Migration Planning; Phase G: Implementation Governance; "
+        "and Phase H: Architecture Change Management. Requirements Management is shown "
+        "at the center of the cycle with connections to the phases; it is not a lettered "
+        "phase. The supplied Phase C extracts cover Data Architecture and Application "
+        "Architecture."
+    ),
+}
+
 
 @dataclass(frozen=True)
 class SourceDocument:
@@ -43,17 +59,19 @@ def extract_documents(data: bytes, filename: str) -> list[SourceDocument]:
         from pypdf import PdfReader
 
         reader = PdfReader(BytesIO(data))
-        pages = [
+        source_name = Path(filename).name
+        pages = []
+        for index, page in enumerate(reader.pages, start=1):
             # TOGAF PDFs position glyphs individually; pypdf's default extraction
             # can split ordinary words ("contin uous", "go vernance"). Layout mode
             # uses page coordinates to restore much more reliable word boundaries.
-            SourceDocument(
-                text=_clean_text(page.extract_text(extraction_mode="layout") or ""),
-                source=Path(filename).name,
-                page=index,
-            )
-            for index, page in enumerate(reader.pages, start=1)
-        ]
+            text = _clean_text(page.extract_text(extraction_mode="layout") or "")
+            figure_transcription = PDF_FIGURE_TRANSCRIPTIONS.get((source_name, index))
+            if figure_transcription:
+                # Put the short transcription first so chunking keeps all figure
+                # labels together in the first chunk for this cited page.
+                text = _clean_text(f"{figure_transcription}\n\n{text}")
+            pages.append(SourceDocument(text=text, source=source_name, page=index))
         documents = [page for page in pages if page.text]
     elif suffix == ".docx":
         from docx import Document

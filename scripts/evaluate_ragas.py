@@ -29,6 +29,8 @@ METRIC_COLUMNS = [
 def _patch_optional_vertexai_import() -> None:
     """Keep Groq evaluation usable when Ragas imports its optional Vertex AI adapter."""
     module_name = "langchain_community.chat_models.vertexai"
+    if module_name in sys.modules:
+        return
     try:
         present = importlib.util.find_spec(module_name) is not None
     except ModuleNotFoundError:
@@ -126,6 +128,7 @@ def main() -> None:
     store.replace_index(chunks, embedder)
 
     from groq import Groq
+    from openai import OpenAI
     from ragas import EvaluationDataset, evaluate
     from ragas.llms import llm_factory
     from ragas.metrics.collections import (
@@ -136,7 +139,14 @@ def main() -> None:
     )
 
     client = Groq(api_key=api_key)
-    evaluator_llm = llm_factory(args.model, provider="groq", client=client)
+    # Ragas 0.4.3's Groq adapter is incompatible with some installed Instructor
+    # releases. Groq provides an OpenAI-compatible endpoint, so use its official
+    # OpenAI client adapter for Ragas while the app itself continues using Groq.
+    evaluator_client = OpenAI(
+        api_key=api_key,
+        base_url="https://api.groq.com/openai/v1",
+    )
+    evaluator_llm = llm_factory(args.model, provider="openai", client=evaluator_client)
     evaluator_embeddings = FastEmbedRagasEmbedding(embedder)
     metrics = [
         Faithfulness(llm=evaluator_llm),

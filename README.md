@@ -60,6 +60,11 @@ flowchart LR
 | Recuperación | búsqueda vectorial y léxica BM25, consultas cortas español-inglés, umbral inicial 0.55 y `top_k=5` | Mantiene cada equivalencia separada para no diluir la consulta; BM25 ayuda con nombres y siglas exactas. Busca candidatos antes de limitar los fragmentos que se envían al modelo. |
 | Generación | GroqCloud con `openai/gpt-oss-20b` por defecto | Mantiene el System Prompt, Few-Shot, delimitadores y formato JSON del Avance 1; usa Structured Outputs, esfuerzo de razonamiento bajo y un límite de 2048 tokens de salida para dejar espacio al JSON en respuestas extensas. |
 
+El diagrama vectorial del ciclo ADM de la página 4 de `TOGAF_V9.1-Introduccion.pdf`
+no produce etiquetas en la extracción de texto. `documents.py` agrega una transcripción
+manual de sus rótulos con los mismos metadatos de documento y página para que la secuencia
+y la Gestión de Requisitos sean recuperables y citables.
+
 Los parámetros 900/120 y el umbral 0.55 son la configuración inicial documentada. La
 evaluación compara `top_k=3` (línea base) con `top_k=8` (candidata), manteniendo iguales
 los demás parámetros. La candidata solo debe llamarse “mejora” si los resultados Ragas
@@ -145,6 +150,8 @@ respuesta de referencia y, cuando corresponde, el PDF y la página esperados.
 La evaluación ejecuta ambos valores de `top_k` y calcula **faithfulness**,
 **answer_relevancy**, **context_precision** y **context_recall**. También genera un
 resumen de control de abstenciones para los casos ausentes del corpus.
+El tutor y Ragas usan la misma `GROQ_API_KEY`; la evaluación se conecta al endpoint
+compatible con OpenAI de Groq para evitar incompatibilidades del adaptador de Ragas.
 
 ```powershell
 python -m scripts.evaluate_ragas

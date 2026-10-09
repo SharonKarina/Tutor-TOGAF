@@ -390,6 +390,10 @@ class RAGPipeline:
                 for term in ("architecture development cycle", "phases of the adm cycle", "adm phases")
             ):
                 combined_score += 0.12
+            if asks_for_phase_list and "figure 5-1" in normalized_text:
+                # The labeled cycle diagram is the corpus' direct evidence for the
+                # complete A-H order; keep it ahead of generic phase descriptions.
+                combined_score += 1.0
             if asks_for_building_blocks and any(
                 term in normalized_text
                 for term in ("building blocks", "building block", "abb", "sbb")
