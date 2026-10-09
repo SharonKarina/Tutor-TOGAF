@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 from src.rag.documents import chunk_documents, extract_documents
 from src.rag.embeddings import DEFAULT_EMBEDDING_MODEL, get_local_embedder
-from src.rag.generation import DEFAULT_GEMINI_MODEL
+from src.rag.generation import DEFAULT_GROQ_MODEL
 from src.rag.pipeline import RAGPipeline
 from src.rag.vector_store import ChromaVectorStore
 
@@ -23,18 +23,18 @@ def cached_embedder(model_name: str):
 
 
 @st.cache_resource(show_spinner=False)
-def cached_gemini_client(api_key: str):
-    from google import genai
+def cached_groq_client(api_key: str):
+    from groq import Groq
 
-    return genai.Client(api_key=api_key)
+    return Groq(api_key=api_key)
 
 
-def gemini_api_key() -> str:
-    key = os.getenv("GEMINI_API_KEY", "").strip()
+def groq_api_key() -> str:
+    key = os.getenv("GROQ_API_KEY", "").strip()
     if key:
         return key
     try:
-        return str(st.secrets["GEMINI_API_KEY"]).strip()
+        return str(st.secrets["GROQ_API_KEY"]).strip()
     except Exception:
         return ""
 
@@ -119,9 +119,9 @@ with st.sidebar:
 
     st.caption(
         "La aplicación recibe los archivos cargados para procesarlos en la sesión. "
-        "Solo los fragmentos recuperados, la pregunta y el historial reciente se envían a Gemini. "
-        "Configura una clave de un proyecto con facturación activa para evitar que Google use "
-        "entradas y respuestas para mejorar productos."
+        "Solo los fragmentos recuperados, la pregunta y el historial reciente se envían a Groq. "
+        "Consulta la [política de datos de Groq](https://console.groq.com/docs/your-data) "
+        "antes de cargar documentos privados."
     )
 
 for message in st.session_state.messages:
@@ -137,16 +137,16 @@ if question:
         st.warning("Primero carga los PDF y crea el índice de esta sesión.")
         st.stop()
 
-    api_key = gemini_api_key()
+    api_key = groq_api_key()
     if not api_key:
-        st.error("Falta configurar GEMINI_API_KEY en el entorno o en los secretos de Streamlit.")
+        st.error("Falta configurar GROQ_API_KEY en el entorno o en los secretos de Streamlit.")
         st.stop()
 
     st.session_state.messages.append({"role": "user", "content": question})
     with st.chat_message("user"):
         st.write(question)
 
-    model_name = os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
+    model_name = os.getenv("GROQ_MODEL", DEFAULT_GROQ_MODEL)
     embedder = cached_embedder(os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL))
     pipeline = RAGPipeline(
         st.session_state.rag_store,
@@ -155,7 +155,7 @@ if question:
         model_name=model_name,
     )
     history = st.session_state.messages[:-1]
-    client = cached_gemini_client(api_key)
+    client = cached_groq_client(api_key)
     try:
         with st.chat_message("assistant"):
             with st.spinner("Buscando evidencia en los documentos…"):

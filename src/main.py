@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 from src.rag.documents import chunk_documents, load_directory
 from src.rag.embeddings import DEFAULT_EMBEDDING_MODEL, get_local_embedder
-from src.rag.generation import DEFAULT_GEMINI_MODEL
+from src.rag.generation import DEFAULT_GROQ_MODEL
 from src.rag.pipeline import RAGPipeline
 from src.rag.vector_store import ChromaVectorStore
 
@@ -18,15 +18,14 @@ INDEX_DIR = ROOT / "data" / "chroma"
 
 
 def _client_from_environment():
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError(
-            "Falta GEMINI_API_KEY. Configura una clave de Gemini con facturación "
-            "activa para evitar el uso de entradas y respuestas en la mejora de productos."
+            "Falta GROQ_API_KEY. Configura una clave de Groq para habilitar la generación."
         )
-    from google import genai
+    from groq import Groq
 
-    return genai.Client(api_key=api_key)
+    return Groq(api_key=api_key)
 
 
 def _ensure_index() -> ChromaVectorStore:
@@ -60,7 +59,7 @@ def main() -> None:
         store,
         embedder,
         min_similarity=float(os.getenv("MIN_RETRIEVAL_SIMILARITY", "0.55")),
-        model_name=os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL),
+        model_name=os.getenv("GROQ_MODEL", DEFAULT_GROQ_MODEL),
     )
     history: list[dict[str, str]] = []
     print("Escribe 'salir' para terminar.\n")

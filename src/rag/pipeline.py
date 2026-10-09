@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from src.rag.embeddings import LocalEmbedder
-from src.rag.generation import DEFAULT_GEMINI_MODEL, TutorAnswer, generate_answer
+from src.rag.generation import DEFAULT_GROQ_MODEL, TutorAnswer, generate_answer
 from src.rag.vector_store import ChromaVectorStore, RetrievedChunk
 
 ABSTENTION_TEXT = (
@@ -39,7 +39,7 @@ class RAGPipeline:
         embedder: LocalEmbedder,
         *,
         min_similarity: float = 0.55,
-        model_name: str = DEFAULT_GEMINI_MODEL,
+        model_name: str = DEFAULT_GROQ_MODEL,
     ) -> None:
         self.store = store
         self.embedder = embedder

@@ -11,7 +11,7 @@ from ragas.embeddings.base import BaseRagasEmbedding
 
 from src.rag.documents import chunk_documents, load_directory
 from src.rag.embeddings import DEFAULT_EMBEDDING_MODEL, get_local_embedder
-from src.rag.generation import DEFAULT_GEMINI_MODEL
+from src.rag.generation import DEFAULT_GROQ_MODEL
 from src.rag.pipeline import RAGPipeline
 from src.rag.vector_store import ChromaVectorStore
 
@@ -81,15 +81,15 @@ def main() -> None:
     parser.add_argument("--limit", type=int, help="Ejecuta solo las primeras preguntas; para un piloto.")
     parser.add_argument("--baseline-top-k", type=int, default=3)
     parser.add_argument("--candidate-top-k", type=int, default=5)
-    parser.add_argument("--model", default=os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL))
+    parser.add_argument("--model", default=os.getenv("GROQ_MODEL", DEFAULT_GROQ_MODEL))
     args = parser.parse_args()
 
     load_dotenv(ROOT / ".env")
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
         raise SystemExit(
-            "Falta GEMINI_API_KEY. El script requiere Gemini para generar respuestas y "
-            "calcular las métricas Ragas. Usa una clave de un proyecto con facturación activa."
+            "Falta GROQ_API_KEY. El script requiere Groq para generar respuestas y "
+            "calcular las métricas Ragas."
         )
 
     questions = _load_dataset(Path(args.dataset), args.limit)
@@ -103,7 +103,7 @@ def main() -> None:
     )
     store.replace_index(chunks, embedder)
 
-    from google import genai
+    from groq import Groq
     from ragas import EvaluationDataset, evaluate
     from ragas.llms import llm_factory
     from ragas.metrics.collections import (
@@ -113,8 +113,8 @@ def main() -> None:
         Faithfulness,
     )
 
-    client = genai.Client(api_key=api_key)
-    evaluator_llm = llm_factory(args.model, provider="google", client=client)
+    client = Groq(api_key=api_key)
+    evaluator_llm = llm_factory(args.model, provider="groq", client=client)
     evaluator_embeddings = FastEmbedRagasEmbedding(embedder)
     metrics = [
         Faithfulness(llm=evaluator_llm),

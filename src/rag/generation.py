@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from prompts.system_prompt import SYSTEM_PROMPT
 from src.rag.vector_store import RetrievedChunk
 
-DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b"
 
 
 class TutorAnswer(BaseModel):
@@ -59,33 +59,37 @@ def generate_answer(
     history: list[dict[str, str]] | None = None,
     *,
     client=None,
-    model_name: str = DEFAULT_GEMINI_MODEL,
+    model_name: str = DEFAULT_GROQ_MODEL,
 ) -> TutorAnswer:
     """Generate one schema-constrained answer; only retrieved chunks are sent."""
     if client is None:
-        from google import genai
+        from groq import Groq
 
-        client = genai.Client()
+        client = Groq()
 
-    from google.genai import types
-
-    response = client.models.generate_content(
+    response = client.chat.completions.create(
         model=model_name,
-        contents=build_user_message(question, chunks, history),
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-            response_mime_type="application/json",
-            response_schema=TutorAnswer,
-            temperature=0.2,
-            max_output_tokens=900,
-        ),
+        messages=[
+            {
+                "role": "user",
+                "content": (
+                    f"<SYSTEM_PROMPT>\n{SYSTEM_PROMPT}\n</SYSTEM_PROMPT>\n\n"
+                    f"{build_user_message(question, chunks, history)}"
+                ),
+            }
+        ],
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "tutor_answer",
+                "strict": True,
+                "schema": TutorAnswer.model_json_schema(),
+            },
+        },
+        temperature=0.2,
+        max_completion_tokens=900,
     )
-    parsed = getattr(response, "parsed", None)
-    if isinstance(parsed, TutorAnswer):
-        return parsed
-    if isinstance(parsed, dict):
-        return TutorAnswer.model_validate(parsed)
-    raw_text = getattr(response, "text", None)
+    raw_text = response.choices[0].message.content
     if not raw_text:
-        raise ValueError("Gemini devolvió una respuesta vacía.")
+        raise ValueError("Groq devolvió una respuesta vacía.")
     return TutorAnswer.model_validate_json(raw_text)

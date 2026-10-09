@@ -38,7 +38,7 @@ flowchart LR
     H --> I{¿Similitud >= 0.55?}
     I -->|No| J[Abstención sin llamada al LLM]
     I -->|Sí| K[System Prompt + fragmentos recuperados]
-    K --> L[Gemini JSON]
+    K --> L[Groq JSON]
     L --> M[Respuesta + fuentes y páginas]
 ```
 
@@ -46,12 +46,12 @@ flowchart LR
 
 | Componente | Decisión | Motivo |
 | --- | --- | --- |
-| Extracción | `pypdf`, `python-docx` y BeautifulSoup | Lee PDF, DOCX, TXT y HTML sin enviar los archivos a Gemini. |
+| Extracción | `pypdf`, `python-docx` y BeautifulSoup | Lee PDF, DOCX, TXT y HTML antes de enviar solo los fragmentos recuperados al LLM. |
 | Chunking | 900 caracteres, solapamiento de 120; no cruza páginas de PDF | Conserva pasajes cortos y su referencia de página; el solapamiento reduce cortes en límites de fragmento. |
 | Embeddings | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` mediante FastEmbed/ONNX | Modelo multilingüe local para preguntas en español y documentos mayormente en inglés; no requiere llamadas de embeddings a una API. |
 | Índice | Chroma con distancia coseno | Persiste localmente en `data/chroma/`; la app usa una colección temporal por sesión. |
 | Recuperación | similitud coseno, umbral inicial 0.55 y `top_k=5` | Solo se conserva el conjunto recuperado; el umbral y `top_k` son configurables. |
-| Generación | Google GenAI con `gemini-3.5-flash-lite` por defecto | Mantiene el System Prompt, Few-Shot, delimitadores y formato JSON del Avance 1. |
+| Generación | GroqCloud con `openai/gpt-oss-20b` por defecto | Mantiene el System Prompt, Few-Shot, delimitadores y formato JSON del Avance 1; usa Structured Outputs con esquema JSON. |
 
 Los parámetros 900/120 y el umbral 0.55 son la configuración inicial documentada. La
 evaluación compara `top_k=3` (línea base) con `top_k=5` (candidata), manteniendo iguales
@@ -60,19 +60,27 @@ lo respaldan.
 
 ## Privacidad y servicios externos
 
-- Los embeddings y la búsqueda se ejecutan localmente. La primera ejecución descarga el
-  modelo de embeddings desde Hugging Face; los documentos no se cargan allí.
+- Los embeddings se generan con FastEmbed/ONNX en el proceso que ejecuta la app: en el
+  equipo durante el uso local o en el servidor de Streamlit durante el uso público. La
+  primera ejecución descarga el modelo desde Hugging Face; los documentos no se cargan allí.
 - Al usar la app pública, el navegador envía los archivos cargados al servidor de
   Streamlit para procesarlos en memoria durante la sesión. La aplicación no los guarda
   en el índice persistente del servidor.
 - Solo la pregunta, el historial reciente y los fragmentos recuperados se envían a
-  Gemini para generar una respuesta. La evaluación Ragas también envía a Gemini las
-  preguntas, respuestas, referencias y contextos recuperados para calificarlos.
-- **Usa una clave de Gemini de un proyecto con facturación activa.** Google indica que
-  el nivel gratuito puede usar entradas y respuestas para mejorar sus productos; en el
-  nivel de pago no se usan para ese fin. Las llamadas se facturan por tokens y el nivel
-  de pago requiere asociar facturación; revisa las [condiciones y tarifas vigentes de
-  Gemini](https://ai.google.dev/gemini-api/docs/billing) antes de ejecutar la evaluación.
+  Groq para generar una respuesta. Ragas también envía a Groq las preguntas, respuestas,
+  referencias y contextos recuperados para calificarlos.
+- Groq indica que no retiene por defecto los datos de inferencia; puede conservarlos
+  temporalmente hasta 30 días para investigar abuso o resolver problemas de fiabilidad.
+  Sus condiciones también indican que no usa entradas y salidas para entrenar modelos
+  salvo autorización expresa. Consulta [el manejo de datos](https://console.groq.com/docs/your-data),
+  el [acuerdo de servicio](https://console.groq.com/docs/legal/services-agreement) y los
+  controles de retención antes de cargar material privado.
+- Groq **también tiene límites**: la cuota depende del modelo y la cuenta, e incluye
+  solicitudes y tokens por minuto/día. El plan gratuito está limitado; el plan Developer
+  ofrece cuotas mayores y cobra por uso. El modelo predeterminado tiene una ventana de
+  contexto de 131,072 tokens y un máximo de 65,536 tokens de salida. Consulta los
+  [límites vigentes](https://console.groq.com/docs/rate-limits), [modelos y precios](https://console.groq.com/docs/models)
+  y [datos](https://console.groq.com/docs/your-data) antes de ejecutar la evaluación completa.
 - Nunca agregues `.env`, `secrets.toml`, índices locales ni los PDF fuente a Git.
 
 ## Instalación local
@@ -88,8 +96,7 @@ python -m pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Edita `.env` localmente y asigna una clave de Gemini de un proyecto con facturación
-activa. No pegues la clave en GitHub ni en el chat.
+Edita `.env` localmente y asigna `GROQ_API_KEY`. No pegues la clave en GitHub ni en el chat.
 
 Copia los seis archivos TOGAF a `data/source_documents/`. Para crear o actualizar el
 índice local persistente:
@@ -141,8 +148,9 @@ comparación completa:
 python -m scripts.evaluate_ragas --limit 3
 ```
 
-La ejecución completa puede generar solicitudes a Gemini tanto para responder las
-preguntas como para juzgar las métricas Ragas. Los resultados y textos intermedios se
+La ejecución completa genera solicitudes a Groq tanto para responder las preguntas
+como para juzgar las métricas Ragas. Puede consumir parte de la cuota gratuita o generar
+un cobro si la cuenta tiene el plan Developer. Los resultados y textos intermedios se
 guardan localmente bajo `evaluation/results/`, carpeta excluida de Git. No incluyas
 fragmentos del corpus ni archivos intermedios en un repositorio público.
 
@@ -153,7 +161,7 @@ fragmentos del corpus ni archivos intermedios en un repositorio público.
    GitHub.
 3. Crea una app desde el repositorio `SharonKarina/Tutor-TOGAF`, rama `main` y archivo
    de entrada `app.py`.
-4. Selecciona Python 3.12 y agrega `GEMINI_API_KEY` en los secretos de la app; no la
+4. Selecciona Python 3.12 y agrega `GROQ_API_KEY` en los secretos de la app; no la
    agregues a un archivo del repositorio.
 5. Despliega, verifica que el arranque termine y carga los PDF desde la interfaz.
 6. Copia la URL que Streamlit asigne y actualiza la sección siguiente.
@@ -169,7 +177,7 @@ fragmentos del corpus ni archivos intermedios en un repositorio público.
 - `src/rag/embeddings.py`: embeddings FastEmbed locales.
 - `src/rag/vector_store.py`: índice Chroma persistente o temporal.
 - `src/rag/pipeline.py`: recuperación, umbral y abstención.
-- `src/rag/generation.py`: integración Gemini y salida JSON.
+- `src/rag/generation.py`: integración Groq y salida JSON estructurada.
 - `prompts/system_prompt.py`: System Prompt y ejemplos Few-Shot del tutor.
 - `scripts/build_index.py`: construcción local del índice persistente.
 - `scripts/evaluate_ragas.py`: comparación Ragas antes/después.
