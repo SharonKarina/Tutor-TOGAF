@@ -16,6 +16,12 @@ El corpus disponible para esta entrega está compuesto por seis extractos:
 - Fase C: Data Architecture.
 - Fase C: Application Architecture.
 
+Se eligieron estos extractos porque cubren la introducción y preparación del ADM, junto con
+las fases A y B y dos vistas de la fase C disponibles para este proyecto. Así el tutor puede
+responder preguntas desde el marco general hasta ejemplos de dominios concretos con citas
+de página. El corpus no incluye el capítulo de Technology Architecture (fase D) ni el resto
+de TOGAF 9.1, por lo que el asistente debe indicar esa limitación cuando corresponda.
+
 La fase D y otros capítulos no están incluidos. El tutor debe reconocer esa limitación
 y abstenerse cuando los fragmentos recuperados no permitan responder.
 

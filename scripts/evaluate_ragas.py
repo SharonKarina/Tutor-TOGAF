@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import importlib.util
 import json
 import os
+import sys
+import types
 from pathlib import Path
 
 from dotenv import load_dotenv
-from ragas.embeddings.base import BaseRagasEmbedding
 
 from src.rag.documents import chunk_documents, load_directory
 from src.rag.embeddings import DEFAULT_EMBEDDING_MODEL, get_local_embedder
@@ -22,6 +24,26 @@ METRIC_COLUMNS = [
     "context_precision",
     "context_recall",
 ]
+
+
+def _patch_optional_vertexai_import() -> None:
+    """Keep Groq evaluation usable when Ragas imports its optional Vertex AI adapter."""
+    module_name = "langchain_community.chat_models.vertexai"
+    try:
+        present = importlib.util.find_spec(module_name) is not None
+    except ModuleNotFoundError:
+        present = False
+    if not present:
+        # Ragas 0.4.3 imports this optional integration unconditionally, even when
+        # llm_factory uses Groq. The Vertex AI types are only used for an isinstance
+        # check, so a local placeholder avoids requiring an unrelated provider SDK.
+        module = types.ModuleType(module_name)
+        module.ChatVertexAI = type("ChatVertexAI", (), {})
+        sys.modules[module_name] = module
+
+
+_patch_optional_vertexai_import()
+from ragas.embeddings.base import BaseRagasEmbedding
 
 
 def _load_dataset(path: Path, limit: int | None) -> list[dict]:

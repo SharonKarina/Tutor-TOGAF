@@ -75,9 +75,11 @@ def build_user_message(
         )
     if _asks_for_adm_phase_list(question):
         intent_guidance.append(
-            "Si los fragmentos muestran la secuencia de fases del ADM, enumérala. Distingue "
-            "las fases que solo aparecen nombradas de las que sí tienen actividades u objetivos "
-            "descritos. Nunca repitas la pregunta como respuesta."
+            "Si los fragmentos muestran la secuencia de fases del ADM, enumérala en el orden "
+            "correcto: fase preliminar primero y después las fases A, B, C, D, E, F, G y H. "
+            "La Gestión de Requisitos es transversal y no una fase numerada. Distingue las fases "
+            "que solo aparecen nombradas de las que sí tienen actividades u objetivos descritos; "
+            "no atribuyas actividades genéricas a todas. Nunca repitas la pregunta como respuesta."
         )
     compared_domains = sum(
         term in normalized_question
