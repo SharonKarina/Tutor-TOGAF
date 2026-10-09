@@ -52,7 +52,7 @@ flowchart LR
 | Embeddings | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` mediante FastEmbed/ONNX | Modelo multilingüe local para preguntas en español y documentos mayormente en inglés; no requiere llamadas de embeddings a una API. |
 | Índice | Chroma con distancia coseno | Persiste localmente en `data/chroma/`; la app usa una colección temporal por sesión. |
 | Recuperación | búsqueda vectorial y léxica BM25, consultas cortas español-inglés, umbral inicial 0.55 y `top_k=5` | Mantiene cada equivalencia separada para no diluir la consulta; BM25 ayuda con nombres y siglas exactas. Busca candidatos antes de limitar los fragmentos que se envían al modelo. |
-| Generación | GroqCloud con `openai/gpt-oss-20b` por defecto | Mantiene el System Prompt, Few-Shot, delimitadores y formato JSON del Avance 1; usa Structured Outputs con esquema JSON. |
+| Generación | GroqCloud con `openai/gpt-oss-20b` por defecto | Mantiene el System Prompt, Few-Shot, delimitadores y formato JSON del Avance 1; usa Structured Outputs, esfuerzo de razonamiento bajo y un límite de 2048 tokens de salida para dejar espacio al JSON en respuestas extensas. |
 
 Los parámetros 900/120 y el umbral 0.55 son la configuración inicial documentada. La
 evaluación compara `top_k=3` (línea base) con `top_k=8` (candidata), manteniendo iguales

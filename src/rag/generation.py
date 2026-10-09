@@ -142,6 +142,12 @@ def generate_answer(
 
         client = Groq()
 
+    request_options = {}
+    if model_name in {"openai/gpt-oss-20b", "openai/gpt-oss-120b"}:
+        # Keep internal reasoning small so the output budget is available for the
+        # required JSON object, especially on multi-phase ADM questions.
+        request_options["reasoning_effort"] = "low"
+
     response = client.chat.completions.create(
         model=model_name,
         messages=[
@@ -163,7 +169,8 @@ def generate_answer(
             },
         },
         temperature=0.2,
-        max_completion_tokens=900,
+        max_completion_tokens=2048,
+        **request_options,
     )
     raw_text = response.choices[0].message.content
     if not raw_text:
