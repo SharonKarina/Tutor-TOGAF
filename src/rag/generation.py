@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import unicodedata
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -34,6 +35,45 @@ def build_user_message(
     chunks: list[RetrievedChunk],
     history: list[dict[str, str]] | None = None,
 ) -> str:
+    normalized_question = "".join(
+        character
+        for character in unicodedata.normalize("NFKD", question.casefold())
+        if not unicodedata.combining(character)
+    )
+    intent_guidance: list[str] = []
+    if any(term in normalized_question for term in ("gestion de requisitos", "requirements management")):
+        intent_guidance.append(
+            "Para una pregunta sobre gestión de requisitos y ciclo ADM, explica la relación "
+            "que describan los fragmentos (por ejemplo, continuidad, cambios o repositorio, "
+            "solo si aparecen allí). No la conviertas en una lista genérica de fases."
+        )
+    if "adm" in normalized_question and any(
+        term in normalized_question for term in ("fases", "phases", "ciclo", "cycle")
+    ):
+        intent_guidance.append(
+            "Si los fragmentos muestran la secuencia de fases del ADM, enumérala. Distingue "
+            "las fases que solo aparecen nombradas de las que sí tienen actividades u objetivos "
+            "descritos. Nunca repitas la pregunta como respuesta."
+        )
+    compared_domains = sum(
+        term in normalized_question
+        for term in ("negocio", "datos", "aplicaciones", "tecnologic", "business", "data", "application", "technology")
+    )
+    if compared_domains >= 2:
+        intent_guidance.append(
+            "Para comparar dominios, responde de forma parcial y separada: explica cada "
+            "dominio que los fragmentos describan y nombra cuáles solo aparecen mencionados "
+            "sin definición. No rechaces toda la comparación si hay evidencia útil para "
+            "algunos dominios, y no infieras funciones a partir de un nombre solamente."
+        )
+    if any(term in normalized_question for term in ("entregable", "deliverable", "outputs", "productos de trabajo")):
+        intent_guidance.append(
+            "En preguntas sobre entregables, presenta solo las fases y productos que estén "
+            "en los fragmentos y aclara que la lista es parcial si no aparecen todas las "
+            "fases del ADM. No atribuyas validación de cada entregable al Architecture "
+            "Board a menos que el texto lo diga expresamente."
+        )
+
     history_lines: list[str] = []
     for item in (history or [])[-4:]:
         role = "Estudiante" if item.get("role") == "user" else "Tutor"
@@ -46,12 +86,17 @@ def build_user_message(
         "<INSTRUCCIONES>\n"
         "Responde la pregunta actual aplicando el System Prompt. Usa el historial solo "
         "para resolver referencias a turnos anteriores.\n"
-        "Si la pregunta tiene varias partes y el contexto respalda solo algunas, responde "
-        "esas partes y señala con precisión qué dato falta para las demás; no rechaces toda "
-        "la pregunta. No completes vacíos con conocimiento general. Cada dato factual debe "
-        "estar respaldado explícitamente por los fragmentos; no deduzcas contenido a partir "
-        "del título del archivo ni del nombre de una fase. El campo ejemplo debe quedar vacío "
-        "salvo que algún fragmento respalde explícitamente ese ejemplo.\n"
+        "Si los fragmentos contienen evidencia pertinente, redacta una respuesta directa. "
+        "Nunca devuelvas una respuesta vacía ni repitas la pregunta como respuesta. Si no "
+        "hay evidencia suficiente, indícalo claramente.\n"
+        "Si el contexto respalda parte de la pregunta, responde esa parte y señala con "
+        "precisión qué falta; no rechaces toda la pregunta. No completes vacíos con "
+        "conocimiento general. Cada dato factual debe estar respaldado por los fragmentos; "
+        "no deduzcas contenido a partir del título del archivo ni del nombre de una fase. "
+        "El campo ejemplo debe quedar vacío salvo que algún fragmento respalde explícitamente "
+        "ese ejemplo.\n"
+        + "\n".join(intent_guidance)
+        + "\n"
         "</INSTRUCCIONES>\n"
         f"<HISTORIAL>\n{history_text}\n</HISTORIAL>\n"
         f"<CONTEXTO>\n{context_text}\n</CONTEXTO>\n"

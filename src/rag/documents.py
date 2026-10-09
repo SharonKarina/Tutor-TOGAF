@@ -44,7 +44,14 @@ def extract_documents(data: bytes, filename: str) -> list[SourceDocument]:
 
         reader = PdfReader(BytesIO(data))
         pages = [
-            SourceDocument(text=_clean_text(page.extract_text() or ""), source=Path(filename).name, page=index)
+            # TOGAF PDFs position glyphs individually; pypdf's default extraction
+            # can split ordinary words ("contin uous", "go vernance"). Layout mode
+            # uses page coordinates to restore much more reliable word boundaries.
+            SourceDocument(
+                text=_clean_text(page.extract_text(extraction_mode="layout") or ""),
+                source=Path(filename).name,
+                page=index,
+            )
             for index, page in enumerate(reader.pages, start=1)
         ]
         documents = [page for page in pages if page.text]

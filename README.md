@@ -47,7 +47,7 @@ flowchart LR
 
 | Componente | Decisión | Motivo |
 | --- | --- | --- |
-| Extracción | `pypdf` + `fontTools`, `python-docx` y BeautifulSoup | `fontTools` permite a pypdf interpretar fuentes CFF Type1 que aparecen en los PDF TOGAF y reduce errores de codificación al extraer el texto. |
+| Extracción | `pypdf` en modo de diseño + `fontTools`, `python-docx` y BeautifulSoup | El modo de diseño de pypdf conserva mejor los límites entre palabras en estos PDF; `fontTools` permite interpretar fuentes CFF Type1 que aparecen en ellos. |
 | Chunking | 900 caracteres, solapamiento de 120; no cruza páginas de PDF | Conserva pasajes cortos y su referencia de página; el solapamiento reduce cortes en límites de fragmento. |
 | Embeddings | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` mediante FastEmbed/ONNX | Modelo multilingüe local para preguntas en español y documentos mayormente en inglés; no requiere llamadas de embeddings a una API. |
 | Índice | Chroma con distancia coseno | Persiste localmente en `data/chroma/`; la app usa una colección temporal por sesión. |

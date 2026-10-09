@@ -18,7 +18,10 @@ ABSTENTION_TEXT = (
 # sentence made the embedding too broad and hid exact matches in other PDF extracts.
 QUERY_EXPANSIONS = (
     (
-        ("fases del adm", "fases adm", "ciclo adm", "architecture development method"),
+        # Only expand when the student explicitly asks for the ADM phase list.
+        # A question that merely mentions the ADM cycle (for example requirements
+        # management) must not be flooded with unrelated phase descriptions.
+        ("fases del adm", "fases adm", "adm phases", "phases of the adm"),
         (
             "ADM phase sequence Preliminary Phase Phase A Architecture Vision "
             "Phase B Business Architecture Phase C Information Systems Architecture "
@@ -74,10 +77,15 @@ QUERY_EXPANSIONS = (
         ),
     ),
     (
-        ("gestion de requisitos", "gestión de requisitos", "requirements management", "requisitos"),
         (
-            "Requirements Management ADM requirements process requirements repository",
-            "Architecture Requirements Specification requirements traceability",
+            "gestion de requisitos", "gestión de requisitos", "requirements management",
+            "requisitos", "requerimientos",
+        ),
+        (
+            "Requirements Management phase ADM continuous process requirements changes governance",
+            "ADM Requirements Repository requirements flow into and out of ADM phases",
+            "Requirements management process manages requirements and changes throughout ADM",
+            "gestión de requisitos durante el ciclo ADM, cambios, trazabilidad y repositorio",
         ),
     ),
 )
@@ -318,6 +326,10 @@ class RAGPipeline:
         asks_for_building_blocks = any(
             term in normalized_question for term in ("bloques de construccion", "abb", "sbb")
         )
+        asks_for_requirements = any(
+            term in normalized_question
+            for term in ("gestion de requisitos", "requirements management", "requisitos", "requerimientos")
+        )
         domain_terms = {
             "business": ("arquitectura de negocio", "arquitectura negocio", "business architecture", "negocio"),
             "data": ("arquitectura de datos", "arquitectura datos", "data architecture", "datos"),
@@ -365,6 +377,25 @@ class RAGPipeline:
                 for term in ("building blocks", "building block", "abb", "sbb")
             ):
                 combined_score += 0.10
+            if asks_for_requirements:
+                has_requirement_management_evidence = (
+                    "requirements management" in normalized_text
+                    or "requirements repository" in normalized_text
+                    or "changes to requirements" in normalized_text
+                    or "requirements are handled" in normalized_text
+                    or (
+                        "requirement" in normalized_text
+                        and any(
+                            term in normalized_text
+                            for term in ("governance", "adm cycle", "adm phases", "managed", "management")
+                        )
+                    )
+                )
+                # Avoid selecting general phase descriptions merely because the
+                # question also contains the words ADM or cycle.
+                if not has_requirement_management_evidence:
+                    continue
+                combined_score += 0.24
             if asks_for_domain_comparison:
                 evidence_terms = {
                     "business": ("business architecture", "business process", "business domain"),
@@ -387,7 +418,9 @@ class RAGPipeline:
         # Prefer corpus-wide coverage for list, output, and multi-domain questions. For a
         # focused question, keep the strongest pages instead of forcing unrelated PDFs in.
         selected: list[RetrievedChunk] = []
-        needs_cross_source_coverage = asks_for_phase_list or asks_for_outputs or asks_for_domain_comparison
+        needs_cross_source_coverage = (
+            asks_for_phase_list or asks_for_outputs or asks_for_domain_comparison
+        )
         if needs_cross_source_coverage:
             seen_sources: set[str] = set()
             for _, chunk in ranked:
