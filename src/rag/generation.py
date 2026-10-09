@@ -48,8 +48,10 @@ def build_user_message(
         "para resolver referencias a turnos anteriores.\n"
         "Si la pregunta tiene varias partes y el contexto respalda solo algunas, responde "
         "esas partes y señala con precisión qué dato falta para las demás; no rechaces toda "
-        "la pregunta. No completes vacíos con conocimiento general. Incluye un ejemplo solo "
-        "si el contexto lo respalda; si no, deja el campo ejemplo vacío.\n"
+        "la pregunta. No completes vacíos con conocimiento general. Cada dato factual debe "
+        "estar respaldado explícitamente por los fragmentos; no deduzcas contenido a partir "
+        "del título del archivo ni del nombre de una fase. El campo ejemplo debe quedar vacío "
+        "salvo que algún fragmento respalde explícitamente ese ejemplo.\n"
         "</INSTRUCCIONES>\n"
         f"<HISTORIAL>\n{history_text}\n</HISTORIAL>\n"
         f"<CONTEXTO>\n{context_text}\n</CONTEXTO>\n"
@@ -75,12 +77,13 @@ def generate_answer(
         model=model_name,
         messages=[
             {
+                "role": "system",
+                "content": SYSTEM_PROMPT,
+            },
+            {
                 "role": "user",
-                "content": (
-                    f"<SYSTEM_PROMPT>\n{SYSTEM_PROMPT}\n</SYSTEM_PROMPT>\n\n"
-                    f"{build_user_message(question, chunks, history)}"
-                ),
-            }
+                "content": build_user_message(question, chunks, history),
+            },
         ],
         response_format={
             "type": "json_schema",

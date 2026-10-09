@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import logging
 import os
 import uuid
 from collections import Counter
+from pathlib import Path
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -67,7 +69,10 @@ def render_answer(entry: dict) -> None:
 
     sources = entry.get("sources", [])
     if sources:
-        with st.expander(f"Fuentes consultadas ({len(sources)})"):
+        unique_documents = len({source.get("source", "Documento") for source in sources})
+        with st.expander(
+            f"Evidencia: {len(sources)} fragmentos de {unique_documents} documentos"
+        ):
             for index, source in enumerate(sources, start=1):
                 location = source.get("source", "Documento")
                 page = source.get("page")
@@ -100,6 +105,12 @@ with st.sidebar:
     )
     uploaded_files = [(upload.name, upload.getvalue()) for upload in (uploads or [])]
     uploaded_fingerprint = fingerprint_uploads(uploaded_files)
+    if any(Path(filename).suffix.lower() == ".pdf" for filename, _ in uploaded_files):
+        if importlib.util.find_spec("fontTools") is None:
+            st.warning(
+                "Falta fontTools. Instálalo con «python -m pip install -r requirements.txt» "
+                "y vuelve a crear el índice para evitar errores al leer algunos PDF."
+            )
     if st.button("Crear índice de esta sesión", type="primary", disabled=not uploads):
         try:
             source_documents = []
@@ -155,8 +166,8 @@ with st.sidebar:
     top_k = st.slider(
         "Fragmentos máximos por pregunta (top_k)",
         min_value=1,
-        max_value=10,
-        value=8,
+        max_value=8,
+        value=5,
     )
     if st.button("Limpiar conversación"):
         st.session_state.messages = []

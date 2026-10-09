@@ -32,26 +32,26 @@ flowchart LR
     B --> C[Fragmentos por página\n900 caracteres + 120 de solapamiento]
     C --> D[FastEmbed\nmodelo multilingüe local]
     D --> E[Chroma\níndice vectorial]
-    F[Pregunta + equivalencias TOGAF en inglés] --> G[Embedding local]
+    F[Pregunta + consultas equivalentes separadas] --> G[Embedding local]
     X[Pregunta previa solo si es seguimiento] --> G
-    G --> H[Búsqueda coseno\ntop_k configurable]
+    G --> H[Búsqueda vectorial + BM25]
     E --> H
-    H --> I{¿Similitud >= 0.55?}
+    H --> I{¿Hay evidencia relevante?}
     I -->|No| J[Abstención sin llamada al LLM]
     I -->|Sí| K[System Prompt + fragmentos recuperados]
     K --> L[Groq JSON]
-    L --> M[Respuesta + fuentes y páginas]
+    L --> M[Respuesta + fragmentos, documentos y páginas]
 ```
 
 ### Decisiones técnicas
 
 | Componente | Decisión | Motivo |
 | --- | --- | --- |
-| Extracción | `pypdf`, `python-docx` y BeautifulSoup | Lee PDF, DOCX, TXT y HTML antes de enviar solo los fragmentos recuperados al LLM. |
+| Extracción | `pypdf` + `fontTools`, `python-docx` y BeautifulSoup | `fontTools` permite a pypdf interpretar fuentes CFF Type1 que aparecen en los PDF TOGAF y reduce errores de codificación al extraer el texto. |
 | Chunking | 900 caracteres, solapamiento de 120; no cruza páginas de PDF | Conserva pasajes cortos y su referencia de página; el solapamiento reduce cortes en límites de fragmento. |
 | Embeddings | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` mediante FastEmbed/ONNX | Modelo multilingüe local para preguntas en español y documentos mayormente en inglés; no requiere llamadas de embeddings a una API. |
 | Índice | Chroma con distancia coseno | Persiste localmente en `data/chroma/`; la app usa una colección temporal por sesión. |
-| Recuperación | similitud coseno, equivalencias español-inglés, umbral inicial 0.55 y `top_k=8` | Amplía términos TOGAF en español para buscar documentos mayormente en inglés; evita mezclar respuestas anteriores en preguntas independientes. |
+| Recuperación | búsqueda vectorial y léxica BM25, consultas cortas español-inglés, umbral inicial 0.55 y `top_k=5` | Mantiene cada equivalencia separada para no diluir la consulta; BM25 ayuda con nombres y siglas exactas. Busca candidatos antes de limitar los fragmentos que se envían al modelo. |
 | Generación | GroqCloud con `openai/gpt-oss-20b` por defecto | Mantiene el System Prompt, Few-Shot, delimitadores y formato JSON del Avance 1; usa Structured Outputs con esquema JSON. |
 
 Los parámetros 900/120 y el umbral 0.55 son la configuración inicial documentada. La
@@ -125,8 +125,10 @@ streamlit run app.py
 
 En el panel lateral, carga los documentos y selecciona **Crear índice de esta sesión**.
 La conversación conserva turnos para resolver preguntas de seguimiento. En cada
-respuesta, abre **Fuentes consultadas** para revisar nombre de archivo, página y
-fragmento utilizado. El índice de la app se mantiene en memoria durante la sesión.
+respuesta, abre **Evidencia** para revisar cuántos fragmentos y documentos distintos
+se usaron, además del archivo, página y texto recuperado. Un fragmento no equivale a
+un PDF: varias entradas pueden pertenecer al mismo documento. El índice de la app se
+mantiene en memoria durante la sesión.
 
 ## Evaluación Ragas
 
