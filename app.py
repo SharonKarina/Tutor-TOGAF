@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import uuid
+from collections import Counter
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -39,6 +41,20 @@ def groq_api_key() -> str:
         return ""
 
 
+def fingerprint_uploads(files: list[tuple[str, bytes]]) -> str | None:
+    if not files:
+        return None
+    file_fingerprints = []
+    for filename, data in files:
+        digest = hashlib.sha256()
+        digest.update(filename.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(data)
+        file_fingerprints.append(digest.hexdigest())
+    combined = "\n".join(sorted(file_fingerprints)).encode("ascii")
+    return hashlib.sha256(combined).hexdigest()
+
+
 def render_answer(entry: dict) -> None:
     answer = entry.get("answer", {})
     st.markdown(f"**{answer.get('tema', 'Respuesta')}**")
@@ -71,6 +87,8 @@ if "rag_store" not in st.session_state:
     st.session_state.rag_store = None
 if "corpus_fingerprint" not in st.session_state:
     st.session_state.corpus_fingerprint = None
+if "indexed_file_counts" not in st.session_state:
+    st.session_state.indexed_file_counts = {}
 
 with st.sidebar:
     st.header("Base de conocimiento")
@@ -80,14 +98,13 @@ with st.sidebar:
         accept_multiple_files=True,
         help="Los documentos se procesan en la sesión y no se guardan en el índice local del servidor.",
     )
+    uploaded_files = [(upload.name, upload.getvalue()) for upload in (uploads or [])]
+    uploaded_fingerprint = fingerprint_uploads(uploaded_files)
     if st.button("Crear índice de esta sesión", type="primary", disabled=not uploads):
         try:
             source_documents = []
-            file_hashes = []
-            for upload in uploads or []:
-                data = upload.getvalue()
-                file_hashes.append(hashlib.sha256(data).hexdigest())
-                source_documents.extend(extract_documents(data, upload.name))
+            for filename, data in uploaded_files:
+                source_documents.extend(extract_documents(data, filename))
             chunks = chunk_documents(source_documents)
             store = ChromaVectorStore(
                 path=None,
@@ -98,21 +115,49 @@ with st.sidebar:
             with st.spinner("Extrayendo texto y creando el índice local…"):
                 store.replace_index(chunks, embedder)
             st.session_state.rag_store = store
-            st.session_state.corpus_fingerprint = hashlib.sha256(
-                "".join(sorted(file_hashes)).encode("ascii")
-            ).hexdigest()
+            st.session_state.corpus_fingerprint = uploaded_fingerprint
+            st.session_state.indexed_file_counts = dict(
+                Counter(str(chunk.metadata["source"]) for chunk in chunks)
+            )
             st.session_state.messages = []
             st.success(f"Índice listo: {len(source_documents)} páginas/documentos y {len(chunks)} fragmentos.")
         except Exception as exc:
+            logging.exception("No se pudo crear el índice de esta sesión")
             st.error(f"No se pudo crear el índice: {exc}")
 
-    if st.session_state.rag_store is not None:
-        st.success(f"Índice de esta sesión: {st.session_state.rag_store.count()} fragmentos")
+    index_is_current = (
+        st.session_state.rag_store is not None
+        and uploaded_fingerprint == st.session_state.corpus_fingerprint
+    )
+    if st.session_state.rag_store is not None and index_is_current:
+        indexed_files = st.session_state.indexed_file_counts or {
+            filename: 0 for filename, _ in uploaded_files
+        }
+        file_count = len(indexed_files)
+        st.success(
+            f"Índice de esta sesión: {file_count} archivos, "
+            f"{st.session_state.rag_store.count()} fragmentos"
+        )
+        with st.expander("Ver archivos incluidos en el índice"):
+            for filename, chunk_count in sorted(indexed_files.items()):
+                if chunk_count:
+                    st.write(f"{filename}: {chunk_count} fragmentos")
+                else:
+                    st.write(filename)
+            if not st.session_state.indexed_file_counts:
+                st.caption("Pulsa «Crear índice» otra vez para mostrar el total de fragmentos por archivo.")
+    elif st.session_state.rag_store is not None:
+        st.warning("Cambió la lista de documentos. Pulsa «Crear índice de esta sesión» para incluir los archivos nuevos antes de preguntar.")
     else:
         st.info("Carga tus PDF de TOGAF y crea el índice para empezar.")
 
     st.divider()
-    top_k = st.slider("Fragmentos máximos por pregunta (top_k)", min_value=1, max_value=8, value=5)
+    top_k = st.slider(
+        "Fragmentos máximos por pregunta (top_k)",
+        min_value=1,
+        max_value=10,
+        value=8,
+    )
     if st.button("Limpiar conversación"):
         st.session_state.messages = []
         st.rerun()
@@ -133,7 +178,7 @@ for message in st.session_state.messages:
 
 question = st.chat_input("Pregunta sobre los documentos TOGAF cargados…")
 if question:
-    if st.session_state.rag_store is None:
+    if not index_is_current:
         st.warning("Primero carga los PDF y crea el índice de esta sesión.")
         st.stop()
 

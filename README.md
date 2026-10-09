@@ -32,7 +32,8 @@ flowchart LR
     B --> C[Fragmentos por página\n900 caracteres + 120 de solapamiento]
     C --> D[FastEmbed\nmodelo multilingüe local]
     D --> E[Chroma\níndice vectorial]
-    F[Pregunta + historial reciente] --> G[Embedding local]
+    F[Pregunta + equivalencias TOGAF en inglés] --> G[Embedding local]
+    X[Pregunta previa solo si es seguimiento] --> G
     G --> H[Búsqueda coseno\ntop_k configurable]
     E --> H
     H --> I{¿Similitud >= 0.55?}
@@ -50,11 +51,11 @@ flowchart LR
 | Chunking | 900 caracteres, solapamiento de 120; no cruza páginas de PDF | Conserva pasajes cortos y su referencia de página; el solapamiento reduce cortes en límites de fragmento. |
 | Embeddings | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` mediante FastEmbed/ONNX | Modelo multilingüe local para preguntas en español y documentos mayormente en inglés; no requiere llamadas de embeddings a una API. |
 | Índice | Chroma con distancia coseno | Persiste localmente en `data/chroma/`; la app usa una colección temporal por sesión. |
-| Recuperación | similitud coseno, umbral inicial 0.55 y `top_k=5` | Solo se conserva el conjunto recuperado; el umbral y `top_k` son configurables. |
+| Recuperación | similitud coseno, equivalencias español-inglés, umbral inicial 0.55 y `top_k=8` | Amplía términos TOGAF en español para buscar documentos mayormente en inglés; evita mezclar respuestas anteriores en preguntas independientes. |
 | Generación | GroqCloud con `openai/gpt-oss-20b` por defecto | Mantiene el System Prompt, Few-Shot, delimitadores y formato JSON del Avance 1; usa Structured Outputs con esquema JSON. |
 
 Los parámetros 900/120 y el umbral 0.55 son la configuración inicial documentada. La
-evaluación compara `top_k=3` (línea base) con `top_k=5` (candidata), manteniendo iguales
+evaluación compara `top_k=3` (línea base) con `top_k=8` (candidata), manteniendo iguales
 los demás parámetros. La candidata solo debe llamarse “mejora” si los resultados Ragas
 lo respaldan.
 

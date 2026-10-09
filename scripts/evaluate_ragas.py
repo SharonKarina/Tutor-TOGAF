@@ -73,14 +73,14 @@ class FastEmbedRagasEmbedding(BaseRagasEmbedding):
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Compara RAGAS para top_k=3 y top_k=5 con el corpus TOGAF local."
+        description="Compara RAGAS para top_k=3 y top_k=8 con el corpus TOGAF local."
     )
     parser.add_argument("--documents", default=str(ROOT / "data" / "source_documents"))
     parser.add_argument("--dataset", default=str(ROOT / "evaluation" / "questions.json"))
     parser.add_argument("--output", default=str(ROOT / "evaluation" / "results"))
     parser.add_argument("--limit", type=int, help="Ejecuta solo las primeras preguntas; para un piloto.")
     parser.add_argument("--baseline-top-k", type=int, default=3)
-    parser.add_argument("--candidate-top-k", type=int, default=5)
+    parser.add_argument("--candidate-top-k", type=int, default=8)
     parser.add_argument("--model", default=os.getenv("GROQ_MODEL", DEFAULT_GROQ_MODEL))
     args = parser.parse_args()
 

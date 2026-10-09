@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import unicodedata
+
 from src.rag.embeddings import LocalEmbedder
 from src.rag.generation import DEFAULT_GROQ_MODEL, TutorAnswer, generate_answer
 from src.rag.vector_store import ChromaVectorStore, RetrievedChunk
@@ -9,18 +11,56 @@ ABSTENTION_TEXT = (
     "esta pregunta con respaldo."
 )
 
+QUERY_EXPANSIONS = {
+    "fases del adm": (
+        "ADM phases Preliminary Phase Phase A Architecture Vision Phase B Business Architecture "
+        "Phase C Information Systems Architecture Phase D Technology Architecture "
+        "Phase E Opportunities and Solutions Phase F Migration Planning "
+        "Phase G Implementation Governance Phase H Architecture Change Management"
+    ),
+    "vision de arquitectura": (
+        "Phase A Architecture Vision scope stakeholders business goals objectives "
+        "high-level aspirational view approval"
+    ),
+    "arquitectura de negocio": "Business Architecture Phase B baseline target business capability process organization",
+    "arquitectura de datos": "Data Architecture Phase C data entities logical data components",
+    "arquitectura de aplicaciones": "Application Architecture Phase C application systems services",
+    "arquitectura tecnologica": "Technology Architecture Phase D technology infrastructure platform",
+    "bloques de construccion": "Architecture Building Blocks ABB Solution Building Blocks SBB",
+}
+
+FOLLOW_UP_MARKERS = (
+    "y eso", "y esa", "y ese", "lo anterior", "amplia eso", "profundiza", "continua",
+    "dame mas detalle", "explica eso", "que significa eso", "como se relaciona",
+)
+
+
+def _normalize(text: str) -> str:
+    normalized = unicodedata.normalize("NFKD", text.casefold())
+    return "".join(char for char in normalized if not unicodedata.combining(char))
+
 
 def build_retrieval_query(question: str, history: list[dict[str, str]] | None) -> str:
-    """Include recent turns so short follow-up questions retrieve useful material."""
-    turns = []
-    for item in (history or [])[-4:]:
-        content = str(item.get("content", "")).strip()
-        if content:
-            role = "pregunta" if item.get("role") == "user" else "respuesta"
-            turns.append(f"{role}: {content[:350]}")
-    if not turns:
-        return question.strip()
-    return "\n".join([*turns, f"pregunta actual: {question.strip()}"])
+    """Keep standalone searches focused; add prior questions only for clear follow-ups."""
+    current = question.strip()
+    normalized = _normalize(current)
+    parts = [current]
+
+    if any(marker in normalized for marker in FOLLOW_UP_MARKERS):
+        previous_questions = [
+            str(item.get("content", "")).strip()
+            for item in (history or [])
+            if item.get("role") == "user" and str(item.get("content", "")).strip()
+        ][-2:]
+        parts = [*previous_questions, current]
+
+    expansions = [
+        expansion
+        for phrase, expansion in QUERY_EXPANSIONS.items()
+        if phrase in normalized
+    ]
+    parts.extend(expansions)
+    return "\n".join(parts)
 
 
 def abstention_answer() -> TutorAnswer:
@@ -50,7 +90,7 @@ class RAGPipeline:
         self,
         question: str,
         history: list[dict[str, str]] | None = None,
-        top_k: int = 5,
+        top_k: int = 8,
     ) -> list[RetrievedChunk]:
         query = build_retrieval_query(question, history)
         candidates = self.store.search(query, self.embedder, top_k=top_k)
@@ -61,7 +101,7 @@ class RAGPipeline:
         question: str,
         history: list[dict[str, str]] | None = None,
         *,
-        top_k: int = 5,
+        top_k: int = 8,
         client=None,
     ) -> tuple[TutorAnswer, list[RetrievedChunk]]:
         retrieved = self.retrieve(question, history, top_k=top_k)
