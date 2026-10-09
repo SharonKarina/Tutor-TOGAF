@@ -1,0 +1,146 @@
+[
+  {
+    "id": "q01",
+    "question": "¿Qué describe el ADM en el material TOGAF 9.1?",
+    "reference": "El ADM describe un método para desarrollar y gestionar el ciclo de vida de una arquitectura empresarial y constituye el núcleo de TOGAF.",
+    "expects_abstention": false,
+    "source": "TOGAF_V9.1-Introduccion.pdf",
+    "page": 1
+  },
+  {
+    "id": "q02",
+    "question": "¿Para qué sirve el Enterprise Continuum durante la ejecución del ADM?",
+    "reference": "Proporciona un marco y contexto para aprovechar activos de arquitectura relevantes al ejecutar el ADM.",
+    "expects_abstention": false,
+    "source": "TOGAF_V9.1-Introduccion.pdf",
+    "page": 1
+  },
+  {
+    "id": "q03",
+    "question": "¿Cuáles son los dos propósitos generales de la fase preliminar?",
+    "reference": "Determinar la capacidad de arquitectura que desea la organización y establecer esa capacidad dentro de la organización.",
+    "expects_abstention": false,
+    "source": "TOGAF_V9.1-FasePreliminar.pdf",
+    "page": 2
+  },
+  {
+    "id": "q04",
+    "question": "¿Qué adaptación del ADM se realiza en la fase preliminar?",
+    "reference": "Se adapta el método genérico al contexto organizacional para definir un marco de arquitectura específico para la organización; el nivel de detalle depende del alcance y los objetivos.",
+    "expects_abstention": false,
+    "source": "TOGAF_V9.1-FasePreliminar.pdf",
+    "page": 9
+  },
+  {
+    "id": "q05",
+    "question": "Menciona dos posibles resultados de la fase preliminar.",
+    "reference": "Entre sus resultados pueden estar el modelo organizacional para arquitectura empresarial y un marco de arquitectura adaptado, que puede incluir un método, contenido y principios ajustados.",
+    "expects_abstention": false,
+    "source": "TOGAF_V9.1-FasePreliminar.pdf",
+    "page": 12
+  },
+  {
+    "id": "q06",
+    "question": "¿Qué busca lograr la fase A, Architecture Vision?",
+    "reference": "Desarrollar una visión aspiracional de alto nivel sobre las capacidades y el valor de negocio que entregará la arquitectura empresarial propuesta, y obtener aprobación para el Statement of Architecture Work.",
+    "expects_abstention": false,
+    "source": "TOGAF_V9.1-VisionArquitectura.pdf",
+    "page": 2
+  },
+  {
+    "id": "q07",
+    "question": "¿Qué define el Statement of Architecture Work según la fase A?",
+    "reference": "Define un programa de trabajo para desarrollar y desplegar la arquitectura descrita en la Architecture Vision.",
+    "expects_abstention": false,
+    "source": "TOGAF_V9.1-VisionArquitectura.pdf",
+    "page": 2
+  },
+  {
+    "id": "q08",
+    "question": "¿Qué elementos puede incluir la Architecture Vision?",
+    "reference": "Puede incluir una descripción del problema, el objetivo del Statement of Architecture Work, vistas resumidas, un escenario de negocio opcional y requisitos de alto nivel refinados de los interesados.",
+    "expects_abstention": false,
+    "source": "TOGAF_V9.1-VisionArquitectura.pdf",
+    "page": 10
+  },
+  {
+    "id": "q09",
+    "question": "¿Cuál es el objetivo de la fase B, Business Architecture?",
+    "reference": "Desarrollar una arquitectura de negocio objetivo que describa cómo debe operar la empresa para alcanzar sus metas y responder a sus impulsores estratégicos, además de identificar componentes de hoja de ruta a partir de brechas.",
+    "expects_abstention": false,
+    "source": "TOGAF_V9.1-ArquitecturaNegocio.pdf",
+    "page": 2
+  },
+  {
+    "id": "q10",
+    "question": "¿Qué dimensiones resume la Business Architecture?",
+    "reference": "Describe la estrategia de productos o servicios y los aspectos organizacionales, funcionales, de procesos e información del entorno de negocio, junto con sus relaciones.",
+    "expects_abstention": false,
+    "source": "TOGAF_V9.1-ArquitecturaNegocio.pdf",
+    "page": 2
+  },
+  {
+    "id": "q11",
+    "question": "¿Qué pretende la fase C al desarrollar la Data Architecture objetivo?",
+    "reference": "Busca desarrollar una arquitectura de datos objetivo que habilite la arquitectura de negocio y la Architecture Vision, atienda el trabajo solicitado y las preocupaciones de los interesados, e identifique componentes de hoja de ruta según las brechas.",
+    "expects_abstention": false,
+    "source": "TOGAF_V9.1-ArquitecturaInformacion.pdf",
+    "page": 1
+  },
+  {
+    "id": "q12",
+    "question": "¿Qué aporta un enfoque estructurado de gestión de datos?",
+    "reference": "Permite usar los datos de forma efectiva para aprovechar ventajas competitivas; entre las consideraciones está identificar qué componentes de aplicación actúan como sistemas de registro o referencia para datos maestros.",
+    "expects_abstention": false,
+    "source": "TOGAF_V9.1-ArquitecturaInformacion.pdf",
+    "page": 1
+  },
+  {
+    "id": "q13",
+    "question": "¿Qué objetivos tiene la Application Architecture de la fase C?",
+    "reference": "Desarrollar una arquitectura de aplicaciones objetivo que habilite la arquitectura de negocio y la Architecture Vision, y proponer componentes de hoja de ruta a partir de las brechas entre las arquitecturas de aplicaciones base y objetivo.",
+    "expects_abstention": false,
+    "source": "TOGAF_V9.1-ArquitecturaAplicaciones.pdf",
+    "page": 1
+  },
+  {
+    "id": "q14",
+    "question": "¿Qué tipo de recursos puede considerar el repositorio de arquitectura en la fase de aplicaciones?",
+    "reference": "Puede considerar recursos de arquitectura disponibles, entre ellos modelos de negocio genéricos pertinentes para la industria de la organización.",
+    "expects_abstention": false,
+    "source": "TOGAF_V9.1-ArquitecturaAplicaciones.pdf",
+    "page": 1
+  },
+  {
+    "id": "q15",
+    "question": "¿Para qué sirve la hoja de ruta inicial de Business Architecture?",
+    "reference": "Sirve para priorizar actividades de las fases siguientes después de crear arquitecturas base y objetivo y analizar sus brechas; luego aporta material a una hoja de ruta consolidada entre disciplinas.",
+    "expects_abstention": false,
+    "source": "TOGAF_V9.1-ArquitecturaNegocio.pdf",
+    "page": 12
+  },
+  {
+    "id": "q16",
+    "question": "¿Cuáles son los pasos detallados de la fase D, Technology Architecture?",
+    "reference": "Los documentos disponibles no describen los pasos de la fase D; incluyen extractos de la introducción, la fase preliminar, la fase A, la fase B y las arquitecturas de datos y aplicaciones de la fase C.",
+    "expects_abstention": true,
+    "source": null,
+    "page": null
+  },
+  {
+    "id": "q17",
+    "question": "¿Cuál es la capital de Colombia?",
+    "reference": "La pregunta es de geografía y los documentos TOGAF cargados no contienen información para responderla.",
+    "expects_abstention": true,
+    "source": null,
+    "page": null
+  },
+  {
+    "id": "q18",
+    "question": "¿Cuántas personas debe tener el equipo de arquitectura de esta organización?",
+    "reference": "Los extractos no indican un número de integrantes para una organización concreta; solo incluyen contenidos generales sobre roles y responsabilidades.",
+    "expects_abstention": true,
+    "source": null,
+    "page": null
+  }
+]

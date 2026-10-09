@@ -1,7 +1,20 @@
 venv/
 .env
+.env.*
+!.env.example
 __pycache__/
 *.py[cod]
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Private source material (the supplied TOGAF PDFs are marked not for redistribution)
+data/source_documents/*
+!data/source_documents/README.md
+
+# Local vector indexes and evaluation artifacts
+data/chroma/
+evaluation/results/
+
+# Streamlit secrets must never be committed
+.streamlit/secrets.toml

@@ -1,0 +1,231 @@
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+from ragas.embeddings.base import BaseRagasEmbedding
+
+from src.rag.documents import chunk_documents, load_directory
+from src.rag.embeddings import DEFAULT_EMBEDDING_MODEL, get_local_embedder
+from src.rag.generation import DEFAULT_GEMINI_MODEL
+from src.rag.pipeline import RAGPipeline
+from src.rag.vector_store import ChromaVectorStore
+
+ROOT = Path(__file__).resolve().parents[1]
+METRIC_COLUMNS = [
+    "faithfulness",
+    "answer_relevancy",
+    "context_precision",
+    "context_recall",
+]
+
+
+def _load_dataset(path: Path, limit: int | None) -> list[dict]:
+    items = json.loads(path.read_text(encoding="utf-8"))
+    if len(items) < 15:
+        raise ValueError("El conjunto de evaluación debe contener al menos 15 preguntas.")
+    return items[:limit] if limit else items
+
+
+def _answer_text(answer) -> str:
+    parts = [answer.respuesta.strip()]
+    if answer.ejemplo.strip():
+        parts.append(f"Ejemplo: {answer.ejemplo.strip()}")
+    return "\n".join(part for part in parts if part)
+
+
+def _looks_like_abstention(text: str) -> bool:
+    lowered = text.casefold()
+    markers = (
+        "no encontré información",
+        "no encontré evidencia",
+        "no hay información suficiente",
+        "no contiene información",
+        "no puedo responder",
+        "fuera del alcance",
+    )
+    return any(marker in lowered for marker in markers)
+
+
+class FastEmbedRagasEmbedding(BaseRagasEmbedding):
+    """Adapter so Ragas reuses FastEmbed and performs metric embeddings locally."""
+
+    def __init__(self, local_embedder):
+        super().__init__()
+        self.local_embedder = local_embedder
+
+    def embed_text(self, text: str, **kwargs):
+        return self.local_embedder.embed_query(text)
+
+    async def aembed_text(self, text: str, **kwargs):
+        return await asyncio.to_thread(self.local_embedder.embed_query, text)
+
+    def embed_texts(self, texts: list[str], **kwargs):
+        return self.local_embedder.embed_documents(texts)
+
+    async def aembed_texts(self, texts: list[str], **kwargs):
+        return await asyncio.to_thread(self.local_embedder.embed_documents, texts)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Compara RAGAS para top_k=3 y top_k=5 con el corpus TOGAF local."
+    )
+    parser.add_argument("--documents", default=str(ROOT / "data" / "source_documents"))
+    parser.add_argument("--dataset", default=str(ROOT / "evaluation" / "questions.json"))
+    parser.add_argument("--output", default=str(ROOT / "evaluation" / "results"))
+    parser.add_argument("--limit", type=int, help="Ejecuta solo las primeras preguntas; para un piloto.")
+    parser.add_argument("--baseline-top-k", type=int, default=3)
+    parser.add_argument("--candidate-top-k", type=int, default=5)
+    parser.add_argument("--model", default=os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL))
+    args = parser.parse_args()
+
+    load_dotenv(ROOT / ".env")
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise SystemExit(
+            "Falta GEMINI_API_KEY. El script requiere Gemini para generar respuestas y "
+            "calcular las métricas Ragas. Usa una clave de un proyecto con facturación activa."
+        )
+
+    questions = _load_dataset(Path(args.dataset), args.limit)
+    source_documents = load_directory(args.documents)
+    chunks = chunk_documents(source_documents, chunk_size=900, overlap=120)
+    embedding_model_name = os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
+    embedder = get_local_embedder(embedding_model_name)
+    store = ChromaVectorStore(
+        path=ROOT / "data" / "chroma" / "evaluation",
+        collection_name="togaf_evaluation",
+    )
+    store.replace_index(chunks, embedder)
+
+    from google import genai
+    from ragas import EvaluationDataset, evaluate
+    from ragas.llms import llm_factory
+    from ragas.metrics.collections import (
+        AnswerRelevancy,
+        ContextPrecisionWithReference,
+        ContextRecall,
+        Faithfulness,
+    )
+
+    client = genai.Client(api_key=api_key)
+    evaluator_llm = llm_factory(args.model, provider="google", client=client)
+    evaluator_embeddings = FastEmbedRagasEmbedding(embedder)
+    metrics = [
+        Faithfulness(llm=evaluator_llm),
+        AnswerRelevancy(llm=evaluator_llm, embeddings=evaluator_embeddings),
+        ContextPrecisionWithReference(name="context_precision", llm=evaluator_llm),
+        ContextRecall(llm=evaluator_llm),
+    ]
+
+    threshold = float(os.getenv("MIN_RETRIEVAL_SIMILARITY", "0.55"))
+    variants = [
+        (f"baseline_top_k_{args.baseline_top_k}", args.baseline_top_k),
+        (f"candidate_top_k_{args.candidate_top_k}", args.candidate_top_k),
+    ]
+    ragas_rows: list[dict[str, object]] = []
+    metadata_rows: list[dict[str, object]] = []
+    for variant, top_k in variants:
+        pipeline = RAGPipeline(
+            store,
+            embedder,
+            min_similarity=threshold,
+            model_name=args.model,
+        )
+        for question in questions:
+            answer, retrieved = pipeline.answer(
+                question["question"],
+                top_k=top_k,
+                client=client,
+            )
+            ragas_rows.append(
+                {
+                    "user_input": question["question"],
+                    "response": _answer_text(answer),
+                    "reference": question["reference"],
+                    "retrieved_contexts": [item.text for item in retrieved],
+                }
+            )
+            metadata_rows.append(
+                {
+                    "variant": variant,
+                    "question_id": question["id"],
+                    "expects_abstention": bool(question["expects_abstention"]),
+                    "did_abstain": _looks_like_abstention(answer.respuesta),
+                    "retrieved_count": len(retrieved),
+                }
+            )
+        print(f"Respuestas preparadas: {variant} ({len(questions)} preguntas)")
+
+    evaluation_dataset = EvaluationDataset.from_list(ragas_rows)
+    result = evaluate(
+        dataset=evaluation_dataset,
+        metrics=metrics,
+        llm=evaluator_llm,
+        embeddings=evaluator_embeddings,
+        raise_exceptions=True,
+        show_progress=True,
+        batch_size=1,
+    )
+
+    import pandas as pd
+
+    scores = result.to_pandas()
+    for key, values in metadata_rows[0].items():
+        scores.insert(0, key, [row[key] for row in metadata_rows])
+    output_dir = Path(args.output)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    scores.to_csv(output_dir / "scores_by_question.csv", index=False, encoding="utf-8-sig")
+
+    available_metrics = [column for column in METRIC_COLUMNS if column in scores.columns]
+    summary = scores.groupby("variant")[available_metrics].mean(numeric_only=True)
+    summary.to_csv(output_dir / "metrics_comparison.csv", encoding="utf-8-sig")
+
+    abstention_rows = []
+    for variant, frame in scores.groupby("variant"):
+        expected = frame["expects_abstention"].astype(bool)
+        did_abstain = frame["did_abstain"].astype(bool)
+        abstention_rows.append(
+            {
+                "variant": variant,
+                "expected_abstentions": int(expected.sum()),
+                "correct_abstentions": int((expected & did_abstain).sum()),
+                "missed_abstentions": int((expected & ~did_abstain).sum()),
+                "false_abstentions": int((~expected & did_abstain).sum()),
+                "mean_retrieved_chunks": float(frame["retrieved_count"].mean()),
+            }
+        )
+    abstention = pd.DataFrame(abstention_rows).set_index("variant")
+    abstention.to_csv(output_dir / "abstention_control.csv", encoding="utf-8-sig")
+    (output_dir / "run_metadata.json").write_text(
+        json.dumps(
+            {
+                "model": args.model,
+                "embedding_model": embedding_model_name,
+                "chunk_size_characters": 900,
+                "overlap_characters": 120,
+                "min_similarity": threshold,
+                "baseline_top_k": args.baseline_top_k,
+                "candidate_top_k": args.candidate_top_k,
+                "question_count": len(questions),
+                "note": "Raw prompts, retrieved text, and references are not written to Git-tracked files.",
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    print("\nMétricas Ragas (promedio por configuración):")
+    print(summary.to_string(float_format=lambda value: f"{value:.3f}"))
+    print("\nControl de abstención:")
+    print(abstention.to_string())
+    print(f"\nResultados locales guardados en: {output_dir.resolve()}")
+
+
+if __name__ == "__main__":
+    main()
