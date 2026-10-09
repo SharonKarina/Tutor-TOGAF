@@ -82,10 +82,9 @@ QUERY_EXPANSIONS = (
             "requisitos", "requerimientos",
         ),
         (
-            "Requirements Management phase ADM continuous process requirements changes governance",
-            "ADM Requirements Repository requirements flow into and out of ADM phases",
-            "Requirements management process manages requirements and changes throughout ADM",
-            "gestión de requisitos durante el ciclo ADM, cambios, trazabilidad y repositorio",
+            "Requirements Management continuous phase changes to requirements governance processes other phases",
+            "Requirements Repository new requirements Statement of Architecture Work",
+            "gestión de requisitos fase continua cambios gobernanza otras fases repositorio",
         ),
     ),
 )
@@ -120,6 +119,24 @@ def _tokens(text: str) -> list[str]:
     ]
 
 
+def _asks_for_adm_phase_list(question: str) -> bool:
+    normalized = _normalize(question)
+    tokens = set(_tokens(question))
+    asks_about_phases = bool(tokens.intersection({"fase", "fases", "phase", "phases"}))
+    asks_for_sequence = any(
+        marker in normalized
+        for marker in (
+            "secuencia", "sequence", "cuales son las fases", "what are the phases",
+            "enumera las fases", "list the phases", "list of phases",
+        )
+    )
+    asks_about_requirements = any(
+        marker in normalized
+        for marker in ("gestion de requisitos", "requirements management", "requisitos", "requerimientos")
+    )
+    return "adm" in tokens and asks_about_phases and asks_for_sequence and not asks_about_requirements
+
+
 def build_retrieval_queries(
     question: str, history: list[dict[str, str]] | None = None
 ) -> list[str]:
@@ -136,7 +153,10 @@ def build_retrieval_queries(
         ][-2:]
         queries.extend(f"{previous} {current}" for previous in previous_questions)
 
-    for triggers, expansions in QUERY_EXPANSIONS:
+    if _asks_for_adm_phase_list(current):
+        queries.extend(QUERY_EXPANSIONS[0][1])
+
+    for triggers, expansions in QUERY_EXPANSIONS[1:]:
         if any(trigger in normalized for trigger in triggers):
             queries.extend(expansions)
 
@@ -320,9 +340,7 @@ class RAGPipeline:
         asks_for_objectives = any(
             term in normalized_question for term in ("objetivo", "objectives")
         )
-        asks_for_phase_list = "adm" in _tokens(question) and any(
-            term in normalized_question for term in ("fases", "phases", "ciclo", "cycle")
-        )
+        asks_for_phase_list = _asks_for_adm_phase_list(question)
         asks_for_building_blocks = any(
             term in normalized_question for term in ("bloques de construccion", "abb", "sbb")
         )
@@ -383,11 +401,12 @@ class RAGPipeline:
                     or "requirements repository" in normalized_text
                     or "changes to requirements" in normalized_text
                     or "requirements are handled" in normalized_text
+                    or "continuous phase" in normalized_text
                     or (
                         "requirement" in normalized_text
                         and any(
                             term in normalized_text
-                            for term in ("governance", "adm cycle", "adm phases", "managed", "management")
+                            for term in ("governance", "other phases", "repository")
                         )
                     )
                 )

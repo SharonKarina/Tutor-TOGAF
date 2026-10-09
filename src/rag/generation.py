@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unicodedata
+import re
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -18,6 +19,28 @@ class TutorAnswer(BaseModel):
     respuesta: str = Field(description="Explicación sustentada en el contexto recuperado")
     ejemplo: str = Field(description="Ejemplo breve o una cadena vacía si no aplica")
     nivel: Literal["básico", "intermedio", "avanzado"]
+
+
+def _asks_for_adm_phase_list(question: str) -> bool:
+    normalized = "".join(
+        character
+        for character in unicodedata.normalize("NFKD", question.casefold())
+        if not unicodedata.combining(character)
+    )
+    tokens = set(re.findall(r"[a-z0-9]+", normalized))
+    has_phase_term = bool(tokens.intersection({"fase", "fases", "phase", "phases"}))
+    asks_for_sequence = any(
+        marker in normalized
+        for marker in (
+            "secuencia", "sequence", "cuales son las fases", "what are the phases",
+            "enumera las fases", "list the phases", "list of phases",
+        )
+    )
+    asks_about_requirements = any(
+        marker in normalized
+        for marker in ("gestion de requisitos", "requirements management", "requisitos", "requerimientos")
+    )
+    return "adm" in tokens and has_phase_term and asks_for_sequence and not asks_about_requirements
 
 
 def format_context(chunks: list[RetrievedChunk]) -> str:
@@ -44,12 +67,13 @@ def build_user_message(
     if any(term in normalized_question for term in ("gestion de requisitos", "requirements management")):
         intent_guidance.append(
             "Para una pregunta sobre gestión de requisitos y ciclo ADM, explica la relación "
-            "que describan los fragmentos (por ejemplo, continuidad, cambios o repositorio, "
-            "solo si aparecen allí). No la conviertas en una lista genérica de fases."
+            "que describan los fragmentos y limita cada afirmación a lo que dicen. Si el "
+            "contexto presenta el Repositorio de Requisitos como una opción, descríbelo como "
+            "opcional. No afirmes que versiona requisitos, alimenta cada fase, asegura "
+            "trazabilidad o propaga cambios automáticamente, salvo que el texto lo diga. "
+            "No la conviertas en una lista genérica de fases."
         )
-    if "adm" in normalized_question and any(
-        term in normalized_question for term in ("fases", "phases", "ciclo", "cycle")
-    ):
+    if _asks_for_adm_phase_list(question):
         intent_guidance.append(
             "Si los fragmentos muestran la secuencia de fases del ADM, enumérala. Distingue "
             "las fases que solo aparecen nombradas de las que sí tienen actividades u objetivos "
